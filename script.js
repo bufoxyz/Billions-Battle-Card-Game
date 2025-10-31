@@ -1,6 +1,10 @@
+// ====================================================================
+// Billions Battle Card Game - Logic
+// ====================================================================
+
 // --- 1. DATA KARTU ---
 const CARD_DATABASE = [
-    { id: "BN001", name: "Zero-Knowledge Proof", type: "Defense", cost: 1, value: 30, description: "Menciptakan perisai pelindung. Memberikan 30 Shield.", rarity: "Common" },
+    { id: "BN001", name: "Zero-Knowledge Proof", type: "Defense", cost: 1, value: 30, description: "Menciptakan perisai anonim. Memberikan 30 Shield.", rarity: "Common" },
     { id: "BN002", name: "AI Agent Attack", type: "Attack", cost: 2, value: 45, description: "Mengirim agen AI. Memberikan 45 Damage.", rarity: "Common" },
     { id: "BN003", name: "Data Optimization", type: "Utility", cost: 0, value: 2, description: "Mengoptimalkan dek. Tarik 2 Kartu tambahan.", rarity: "Rare" },
     { id: "BN004", name: "Community Consensus", type: "Utility", cost: 3, value: 15, description: "Menggalang kekuatan komunitas. +15 Shield dan +15 HP.", rarity: "Rare" },
@@ -8,10 +12,11 @@ const CARD_DATABASE = [
     { id: "BN006", name: "Simple Patch", type: "Defense", cost: 0, value: 10, description: "Patch kecil. Memberikan 10 Shield.", rarity: "Common" }
 ];
 
-// --- 2. VARIABEL GAME STATE ---
+// --- 2. KONFIGURASI GAME ---
 const MAX_MANA = 3;
 const STARTING_HP = 100;
-const HAND_SIZE_DRAW = 5;
+const HAND_SIZE_DRAW_START = 7; // Kartu yang ditarik di awal
+const HAND_SIZE_DRAW_TURN = 2;   // Kartu yang ditarik setiap giliran
 
 let players = {
     1: { id: 1, name: "Player 1", hp: STARTING_HP, mana: MAX_MANA, shield: 0, deck: [], hand: [], discard: [] },
@@ -20,25 +25,20 @@ let players = {
 
 let currentPlayer = 1;
 
+
 // --- 3. DOM ELEMENTS ---
 const dom = {
-    p1Hp: document.getElementById('p1-hp'),
-    p1Mana: document.getElementById('p1-mana'),
-    p1Shield: document.getElementById('p1-shield'),
-    p1Hand: document.getElementById('p1-hand'),
-
-    p2Hp: document.getElementById('p2-hp'),
-    p2Mana: document.getElementById('p2-mana'),
-    p2Shield: document.getElementById('p2-shield'),
-    p2Hand: document.getElementById('p2-hand'), // Kita tetap render meski AI
-    
     turnIndicator: document.getElementById('turn-indicator'),
     endTurnBtn: document.getElementById('end-turn-btn'),
     gameLog: document.getElementById('game-log'),
+    p1Hand: document.getElementById('p1-hand'),
+    p2Hand: document.getElementById('p2-hand'),
 };
 
 
-// --- 4. FUNGSI UTILITAS GAME ---
+// ====================================================================
+// 4. FUNGSI UTILITAS DASAR
+// ====================================================================
 
 /** Mengacak array (Fisher-Yates Shuffle) */
 function shuffle(array) {
@@ -59,15 +59,15 @@ function log(message) {
     }
 }
 
-/** Membuat Deck awal untuk pemain */
+/** Membuat Deck awal */
 function createDeck() {
     let deck = [];
-    // Contoh deck: 2x Legendary, 4x Rare, 6x Common
+    // 2x Legendary, 4x Rare, 6x Common (x2 set untuk menambah ukuran deck)
     CARD_DATABASE.forEach(card => {
         let count = 0;
-        if (card.rarity === "Common") count = 6;
-        if (card.rarity === "Rare") count = 4;
-        if (card.rarity === "Legendary") count = 2;
+        if (card.rarity === "Common") count = 12; // 2x6
+        if (card.rarity === "Rare") count = 8;    // 2x4
+        if (card.rarity === "Legendary") count = 4; // 2x2
 
         for (let i = 0; i < count; i++) {
             deck.push(card.id); // Simpan ID kartu saja
@@ -77,18 +77,27 @@ function createDeck() {
     return deck;
 }
 
-/** Mengupdate tampilan statistik di UI */
-function updateStats() {
-    dom.p1Hp.textContent = players[1].hp;
-    dom.p1Mana.textContent = players[1].mana;
-    dom.p1Shield.textContent = players[1].shield;
 
-    dom.p2Hp.textContent = players[2].hp;
-    dom.p2Mana.textContent = players[2].mana;
-    dom.p2Shield.textContent = players[2].shield;
+// ====================================================================
+// 5. FUNGSI UPDATE UI
+// ====================================================================
+
+/** Mengupdate tampilan statistik untuk player tertentu */
+function updatePlayerStats(playerId) {
+    const player = players[playerId];
+    const prefix = playerId === 1 ? 'p1' : 'p2';
+
+    document.getElementById(`${prefix}-hp`).textContent = player.hp;
+    document.getElementById(`${prefix}-mana`).textContent = `${player.mana}`;
+    document.getElementById(`${prefix}-shield`).textContent = player.shield;
+}
+
+/** Mengupdate semua UI terkait stats dan turn */
+function updateUI() {
+    updatePlayerStats(1);
+    updatePlayerStats(2);
     
     dom.turnIndicator.textContent = `${players[currentPlayer].name}'s Turn`;
-    
     renderHand();
 }
 
@@ -99,7 +108,7 @@ function drawCard(player, num = 1) {
         if (player.deck.length === 0) {
             if (player.discard.length === 0) {
                 log(`${player.name} kehabisan kartu!`);
-                return; // Tidak ada kartu lagi
+                return; 
             }
             player.deck = [...player.discard];
             player.discard = [];
@@ -109,7 +118,9 @@ function drawCard(player, num = 1) {
         
         const cardId = player.deck.pop();
         const card = CARD_DATABASE.find(c => c.id === cardId);
-        player.hand.push(card);
+        if (card) {
+             player.hand.push(card);
+        }
     }
     log(`${player.name} menarik ${num} kartu.`);
 }
@@ -124,6 +135,8 @@ function renderHand() {
         const cardElement = document.createElement('div');
         const isPlayable = card.cost <= player.mana;
         
+        cardElement.setAttribute('data-type', card.type); 
+        
         cardElement.className = `card ${isPlayable ? 'playable' : 'disabled'}`;
         cardElement.innerHTML = `
             <div class="card-cost">${card.cost} Mana</div>
@@ -136,32 +149,33 @@ function renderHand() {
             if (currentPlayer === 1 && isPlayable) {
                 playCard(player, index, card);
             } else if (currentPlayer === 2) {
-                log("AI sedang berpikir...");
+                log("Bukan giliran Anda! AI sedang berpikir.");
             } else if (!isPlayable) {
-                log("Mana tidak cukup!");
+                log("Mana tidak cukup untuk kartu ini!");
             }
         };
         
         handElement.appendChild(cardElement);
     });
     
-    // Pastikan tangan lawan (P2) disembunyikan jika dimainkan oleh P1
+    // Sembunyikan tangan lawan
     if (currentPlayer === 1) {
-        dom.p2Hand.innerHTML = 'Kartu Lawan Tersembunyi';
+        dom.p2Hand.innerHTML = '<p class="opponent-text">Kartu Lawan Tersembunyi</p>';
     } else {
-        dom.p1Hand.innerHTML = 'Kartu Lawan Tersembunyi';
+        dom.p1Hand.innerHTML = '<p class="opponent-text">Kartu Lawan Tersembunyi</p>';
     }
 }
 
 
-// --- 5. LOGIKA GAME UTAMA ---
+// ====================================================================
+// 6. LOGIKA GAME UTAMA
+// ====================================================================
 
 /** Memainkan Kartu */
 function playCard(player, cardIndex, card) {
     const opponent = players[player.id === 1 ? 2 : 1];
 
     if (player.mana < card.cost) {
-        log(`${player.name} tidak memiliki cukup Mana untuk memainkan ${card.name}!`);
         return false;
     }
     
@@ -180,10 +194,10 @@ function playCard(player, cardIndex, card) {
             break;
         case 'Utility':
             if (card.name === 'Data Optimization') {
-                drawCard(player, card.value); // value = 2
+                drawCard(player, card.value); 
             } else if (card.name === 'Community Consensus') {
                 player.shield += card.value;
-                player.hp += card.value; // Heal
+                player.hp = Math.min(STARTING_HP, player.hp + card.value); // Heal, max HP 100
                 log(`${player.name} mendapatkan ${card.value} Shield dan menyembuhkan ${card.value} HP.`);
             }
             break;
@@ -193,7 +207,7 @@ function playCard(player, cardIndex, card) {
     const playedCard = player.hand.splice(cardIndex, 1)[0];
     player.discard.push(playedCard.id);
     
-    updateStats();
+    updateUI();
     checkGameOver();
     return true;
 }
@@ -203,7 +217,6 @@ function applyDamage(target, damage) {
     let finalDamage = damage;
     
     if (target.shield > 0) {
-        // Serap damage oleh shield
         const damageToShield = Math.min(target.shield, damage);
         target.shield -= damageToShield;
         finalDamage = damage - damageToShield;
@@ -220,95 +233,68 @@ function applyDamage(target, damage) {
 
 /** Mengakhiri Giliran */
 function endTurn() {
-    // 1. Bersihkan sisa kartu di tangan ke discard pile (optional, tergantung ruleset)
-    // Di game ini, kartu tetap di tangan.
-
-    // 2. Ganti Pemain
+    // 1. Ganti Pemain
     currentPlayer = currentPlayer === 1 ? 2 : 1;
     
-    // 3. Reset Mana, Bersihkan Shield
+    // 2. Reset Mana, Bersihkan Shield
     players[currentPlayer].mana = MAX_MANA;
     players[currentPlayer].shield = 0;
     
     log(`--- Giliran ${players[currentPlayer].name} dimulai! ---`);
     
-    // 4. Tarik kartu baru
-    drawCard(players[currentPlayer], 2); // Setiap turn tarik 2 kartu
+    // 3. Tarik kartu baru
+    drawCard(players[currentPlayer], HAND_SIZE_DRAW_TURN);
 
-    updateStats();
+    updateUI();
 
     // Jika giliran AI, panggil fungsi AI
     if (currentPlayer === 2) {
-        setTimeout(aiTurn, 1000); // Tunda sebentar agar terlihat 'berpikir'
+        dom.endTurnBtn.disabled = true; // Disable tombol saat AI berjalan
+        setTimeout(aiTurn, 1000); 
+    } else {
+        dom.endTurnBtn.disabled = false; // Enable tombol saat giliran P1
     }
 }
 
 /** Logika AI Sederhana (Player 2) */
 function aiTurn() {
     const aiPlayer = players[2];
-    const opponent = players[1];
     let cardsPlayed = 0;
 
     log("AI sedang menentukan langkah...");
 
-    // Strategi AI Sederhana:
-    // 1. Jika HP < 40, prioritaskan Defense/Heal
-    // 2. Jika HP OK, prioritaskan Attack dengan Cost terbaik.
-    
-    let playableCards = aiPlayer.hand.filter(card => card.cost <= aiPlayer.mana);
-    
     // Loop dan mainkan kartu selama masih ada Mana yang bisa digunakan
-    while (playableCards.length > 0 && aiPlayer.mana > 0) {
-        let bestCardIndex = -1;
-        let bestCardScore = -1;
-        
-        playableCards.forEach((card, index) => {
-            let score = 0;
-            
-            // Prioritas 1: Defense jika HP rendah
-            if (aiPlayer.hp < 40 && card.type === 'Defense') {
-                score += card.value * 2; // Nilai tinggi untuk defense
-            }
-            
-            // Prioritas 2: Attack
-            if (card.type === 'Attack') {
-                score += card.value / card.cost; // Prioritas Attack yang cost-nya murah
-            }
-            
-            // Prioritas 3: Utility (hanya jika cost 0)
-            if (card.type === 'Utility' && card.cost === 0) {
-                score += 50;
-            }
+    let playableCards;
+    
+    const playNextCard = () => {
+        playableCards = aiPlayer.hand.filter(card => card.cost <= aiPlayer.mana);
 
-            if (score > bestCardScore) {
-                bestCardScore = score;
-                bestCardIndex = index;
+        if (playableCards.length === 0 || aiPlayer.mana === 0) {
+            log(`AI selesai memainkan kartu.`);
+            if (!checkGameOver()) {
+                setTimeout(endTurn, 1500); 
             }
+            return;
+        }
+
+        // Cari kartu terbaik (Strategi sederhana: prioritaskan Attack, lalu Utility cost 0, lalu Defense)
+        playableCards.sort((a, b) => {
+            if (b.type === 'Attack' && a.type !== 'Attack') return 1;
+            if (b.type === 'Defense' && a.type === 'Utility') return -1;
+            return b.cost - a.cost; // Prioritas cost tertinggi (untuk menghabiskan mana)
         });
 
-        if (bestCardIndex !== -1) {
-             const cardToPlay = playableCards[bestCardIndex];
-             // Cari index cardToPlay di aiPlayer.hand
-             const actualIndex = aiPlayer.hand.findIndex(c => c.id === cardToPlay.id);
-             
-             playCard(aiPlayer, actualIndex, cardToPlay);
-             cardsPlayed++;
-             
-             // Update playable cards
-             playableCards = aiPlayer.hand.filter(card => card.cost <= aiPlayer.mana);
-             
-        } else {
-            // Jika tidak ada kartu 'terbaik' lagi, hentikan
-            break;
-        }
-    }
-    
-    log(`AI memainkan ${cardsPlayed} kartu.`);
-    
-    // Akhiri giliran AI
-    if (!checkGameOver()) {
-        setTimeout(endTurn, 1500); // Tunda lagi sebelum turn P1
-    }
+        const cardToPlay = playableCards[0];
+        const actualIndex = aiPlayer.hand.findIndex(c => c.id === cardToPlay.id);
+        
+        playCard(aiPlayer, actualIndex, cardToPlay);
+        cardsPlayed++;
+        
+        // Jeda sebentar sebelum memainkan kartu berikutnya (Game Feel)
+        setTimeout(playNextCard, 700);
+    };
+
+    playNextCard();
 }
 
 /** Pengecekan Game Over */
@@ -329,8 +315,8 @@ function checkGameOver() {
 /** Menonaktifkan game setelah selesai */
 function disableGame() {
     dom.endTurnBtn.disabled = true;
-    dom.p1Hand.innerHTML = '<p style="text-align:center;">Game Berakhir</p>';
-    dom.p2Hand.innerHTML = '<p style="text-align:center;">Game Berakhir</p>';
+    dom.p1Hand.innerHTML = '<p style="text-align:center; color:#e74c3c;">Game Berakhir</p>';
+    dom.p2Hand.innerHTML = '<p style="text-align:center; color:#e74c3c;">Game Berakhir</p>';
 }
 
 /** Inisialisasi Game */
@@ -339,16 +325,16 @@ function initGame() {
     players[1].deck = createDeck();
     players[2].deck = createDeck();
     
-    // 2. Tarik Kartu Awal (5 kartu)
-    drawCard(players[1], HAND_SIZE_DRAW);
-    drawCard(players[2], HAND_SIZE_DRAW);
+    // 2. Tarik Kartu Awal (7 kartu)
+    drawCard(players[1], HAND_SIZE_DRAW_START);
+    drawCard(players[2], HAND_SIZE_DRAW_START);
 
     // 3. Atur Giliran Awal
     currentPlayer = 1;
     log("Game Dimulai! Player 1 mulai.");
 
     // 4. Update UI
-    updateStats();
+    updateUI();
 
     // 5. Setup Listener
     dom.endTurnBtn.onclick = endTurn;
