@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Billions Battle Card Game</title>
+    <title>Billions Battle Card Game - Billions Network</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="game-container">
-        <div id="player1-area" class="player-area">
-            <h3>Player 1 (Human)</h3>
-            <div id="p1-stats" class="stats-box">
-                <p>HP: <span id="p1-hp">100</span></p>
-                <p>Mana: <span id="p1-mana">3</span>/3</p>
-                <p>Shield: <span id="p1-shield">0</span></p>
+        
+        <div id="player2-area" class="player-area opponent-area">
+            <h3>Player 2 (AI/Local Opponent)</h3>
+            <div id="p2-stats" class="stats-box">
+                <p>HP: <span id="p2-hp">100</span></p>
+                <p>Mana: <span id="p2-mana">3</span>/3</p>
+                <p>Shield: <span id="p2-shield">0</span></p>
             </div>
-            <div id="p1-hand" class="hand">
+            <div id="p2-hand" class="hand opponent-hand">
                 </div>
         </div>
 
@@ -23,20 +24,20 @@
         
         <div id="controls">
             <h2 id="turn-indicator">Player 1 Turn</h2>
-            <button id="end-turn-btn" class="action-btn">End Turn</button>
+            <button id="end-turn-btn" class="action-btn">END TURN</button>
             <div id="game-log">Game Log:</div>
         </div>
 
         <hr>
 
-        <div id="player2-area" class="player-area">
-            <h3>Player 2 (AI/Local)</h3>
-            <div id="p2-stats" class="stats-box">
-                <p>HP: <span id="p2-hp">100</span></p>
-                <p>Mana: <span id="p2-mana">3</span>/3</p>
-                <p>Shield: <span id="p2-shield">0</span></p>
+        <div id="player1-area" class="player-area current-player-area">
+            <h3>Player 1 (Anda)</h3>
+            <div id="p1-stats" class="stats-box">
+                <p>HP: <span id="p1-hp">100</span></p>
+                <p>Mana: <span id="p1-mana">3</span>/3</p>
+                <p>Shield: <span id="p1-shield">0</span></p>
             </div>
-            <div id="p2-hand" class="hand">
+            <div id="p1-hand" class="hand current-player-hand">
                 </div>
         </div>
         
